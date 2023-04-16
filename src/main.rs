@@ -59,15 +59,55 @@ fn main() {
         read(&mut line);
         line = line.trim().to_string();
 
-        let mut stack: Vec<Operator> = Vec::new();
-        let mut substack: Vec<Expression> = Vec::new();
+        let mut opstack: Vec<Operator> = Vec::new();
+        let mut expstack: Vec<Expression> = Vec::new();
 
         if line.chars().last().unwrap() != ';' {
             panic!("Error at line {lc}. Line must end with ';'");
         }
 
+        line.remove(line.len() - 1); // Drop the ';'
+
         let mut it = line.split_whitespace();
         let first = it.next().unwrap();
+
+        let mut next = it.next();
+
+        while let Some(nx) = next {
+            let try_expr = nx.parse::<Expression>();
+            let mut isexp = true;
+
+            match try_expr {
+                Ok(n) => expstack.push(n),
+                _ => isexp = false
+            }
+
+            // For now, parantheses are ignored
+            if !isexp {
+                match nx {
+                    "+" => opstack.push(Operator::Plus),
+                    "-" => opstack.push(Operator::Minus),
+                    "*" => opstack.push(Operator::Mul),
+                    "/" => opstack.push(Operator::Div),
+                    "%" => opstack.push(Operator::Mod),
+                    "**" => opstack.push(Operator::Pow),
+                    "^" => opstack.push(Operator::Xor),
+                    "&" => opstack.push(Operator::And),
+                    "|" => opstack.push(Operator::Or),
+                    _ => {
+                        if vars.contains_key(nx) {
+                            expstack.push(*vars.get(nx).unwrap());
+                        }
+                        else {
+                            panic!("Unexpected word '{nx}'");
+                        }
+                    }
+                }
+            }
+
+            next = it.next();
+        }
+
         
         // TODO: skip the first word to process the numerical stack (if there is any),
         // then decide what to do with the value from the top of the stack (preferably the stack should only have 1 element)
