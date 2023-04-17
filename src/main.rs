@@ -4,6 +4,14 @@ use std::collections::HashMap;
 
 const KEYWORDS: [&str; 6] = ["BEG", "END", "BN", "BZ", "GOTO", "PRINT"];
 
+macro_rules! update_stack {
+    ($st: expr, $add: expr) => {
+        $st.remove(0);
+        $st.remove(0);
+        $st.push($add);
+    };
+}
+
 fn read(input: &mut String) {
     stdout().flush().expect("Flush");
     stdin().read_line(input).expect("Read");
@@ -35,6 +43,7 @@ enum Instruction {
 
 type Expression = i32;
 
+#[derive(Debug)]
 enum Operator {
     Plus,
     Minus,
@@ -54,7 +63,7 @@ fn main() {
     let mut vars: HashMap<String, Expression> = HashMap::new();
     let mut program = Program::new();
 
-    while line != "END;" {
+    while line != "END" {
         line = String::from("");
         read(&mut line);
         line = line.trim().to_string();
@@ -99,7 +108,7 @@ fn main() {
                             expstack.push(*vars.get(nx).unwrap());
                         }
                         else {
-                            panic!("Unexpected word '{nx}'");
+                            panic!("Unexpected word '{nx}' (line {})", lc);
                         }
                     }
                 }
@@ -108,6 +117,66 @@ fn main() {
             next = it.next();
         }
 
+        // Note: (1 + 1) and (1 1 +) are both considered correct by the interpreter and (should) act the same
+        
+        for op in opstack {
+            if expstack.len() < 2 {
+                panic!("Cannot apply operator {:?} to less than 2 numbers from the stack (line {})", op, lc);
+            }
+            use Operator::*;
+            match op {
+                Plus => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a + b);
+                },
+                Minus => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a - b);
+                },
+                Mul => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a * b);
+                },
+                Div => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a / b);
+                },
+                Mod => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a % b);
+                },
+                Pow => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    if b > 0 {
+                        update_stack!(expstack, a.pow(b as u32));
+                    }
+                    else {
+                        update_stack!(expstack, 1 / a.pow(-b as u32));
+                    }
+                },
+                Xor => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a ^ b);
+                },
+                And => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a & b);
+                },
+                Or => {
+                    let a = expstack[0];
+                    let b = expstack[1];
+                    update_stack!(expstack, a | b);
+                }
+            }
+        }
         
         // TODO: skip the first word to process the numerical stack (if there is any),
         // then decide what to do with the value from the top of the stack (preferably the stack should only have 1 element)
