@@ -5,10 +5,15 @@ use std::collections::HashMap;
 const KEYWORDS: [&str; 6] = ["BEG", "END", "BN", "BZ", "GOTO", "PRINT"];
 
 macro_rules! update_stack {
-    ($st: expr, $add: expr) => {
+    ($st: expr, $op: tt) => {
+        $st.push($st[0] $op $st[1]);
+        chop!($st);
+    };
+}
+macro_rules! chop {
+    ($st: expr) => {
         $st.remove(0);
         $st.remove(0);
-        $st.push($add);
     };
 }
 
@@ -20,7 +25,6 @@ fn read(input: &mut String) {
 struct Program {
     instructions: Vec<Instruction>
 }
-
 impl Program {
     fn new() -> Self {
         Self {
@@ -57,7 +61,6 @@ enum Operator {
 }
 
 fn main() {
-
     let mut lc = 1u32; // line counter
     let mut line = String::from("");
     let mut vars: HashMap<String, Expression> = HashMap::new();
@@ -126,54 +129,39 @@ fn main() {
             use Operator::*;
             match op {
                 Plus => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a + b);
+                    update_stack!(expstack, +);
                 },
                 Minus => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a - b);
+                    update_stack!(expstack, -);
                 },
                 Mul => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a * b);
+                    update_stack!(expstack, *);
                 },
                 Div => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a / b);
+                    update_stack!(expstack, /);
                 },
                 Mod => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a % b);
+                    update_stack!(expstack, %);
                 },
                 Pow => {
                     let a = expstack[0];
                     let b = expstack[1];
+                    chop!(expstack);
                     if b > 0 {
-                        update_stack!(expstack, a.pow(b as u32));
+                        expstack.push(a.pow(b as u32));
                     }
                     else {
-                        update_stack!(expstack, 1 / a.pow(-b as u32));
+                        expstack.push(1 / a.pow(-b as u32));
                     }
                 },
                 Xor => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a ^ b);
+                    update_stack!(expstack, ^);
                 },
                 And => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a & b);
+                    update_stack!(expstack, &);
                 },
                 Or => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    update_stack!(expstack, a | b);
+                    update_stack!(expstack, |);
                 }
             }
         }
@@ -197,5 +185,4 @@ fn main() {
 
         lc += 1;
     }
-
 }
