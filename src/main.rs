@@ -2,7 +2,7 @@
 use std::io::{stdin, stdout, Write};
 use std::collections::HashMap;
 
-const KEYWORDS: [&str; 6] = ["BEG", "END", "BN", "BZ", "GOTO", "PRINT"];
+const KEYWORDS: [&str; 6] = ["BEG", "END", "BG", "BZ", "GOTO", "PRINT"];
 
 macro_rules! update_stack {
     ($st: expr, $op: tt) => {
@@ -36,7 +36,7 @@ impl Program {
 enum Instruction {
     BEG,
     END,
-    ZVAR(String),
+    DVAR(String),
     VAR(String, Expression),
     LABEL(String),
     GOTO(String),
@@ -73,6 +73,8 @@ fn main() {
 
         let mut opstack: Vec<Operator> = Vec::new();
         let mut expstack: Vec<Expression> = Vec::new();
+
+        let mut non_default = false;
 
         if line.chars().last().unwrap() != ';' {
             panic!("Error at line {lc}. Line must end with ';'");
@@ -111,7 +113,15 @@ fn main() {
                             expstack.push(*vars.get(nx).unwrap());
                         }
                         else {
-                            panic!("Unexpected word '{nx}' (line {})", lc);
+                            if nx == ":=" {
+                                non_default = true;
+                            }
+                            else {
+                                if KEYWORDS.contains(&nx) {
+                                    // TODO: implement maybe recursion
+                                }
+                                panic!("Unexpected word '{nx}' (line {})", lc);
+                            }
                         }
                     }
                 }
@@ -165,21 +175,28 @@ fn main() {
                 }
             }
         }
-        
-        // TODO: skip the first word to process the numerical stack (if there is any),
-        // then decide what to do with the value from the top of the stack (preferably the stack should only have 1 element)
 
         if KEYWORDS.contains(&first) {
             match first {
+                "BEG" => program.instructions.push(Instruction::BEG),
+                "END" => program.instructions.push(Instruction::END),
                 _ => {}
             }
         }
         else {
             if &first[0..=0] == "$" {
-
+                if non_default {
+                    vars.entry(first.to_string()).or_insert(expstack[0]);
+                }
+                else {
+                    if expstack.len() > 0 {
+                        panic!("Default variable initialization should only contain the name of one variable (line {lc})")
+                    }
+                    vars.entry(first.to_string()).or_insert(0);
+                }
             }
             else {
-
+                // Labels are for now ignored, until something like a pc (program counter) is implemented
             }
         }
 
