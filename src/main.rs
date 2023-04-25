@@ -41,8 +41,8 @@ enum Instruction {
     LABEL(String),
     GOTO(String),
     PRINT(Expression),
-    BZ(Expression, Box<Instruction>),
-    BG(Expression, Box<Instruction>)
+    BZ(Expression, *const Instruction),
+    BG(Expression, *const Instruction)
 }
 
 type Expression = i32;
@@ -59,6 +59,8 @@ enum Operator {
     And,
     Or
 }
+
+// bz 0 print 1
 
 fn main() {
     let mut lc = 1u32; // line counter
@@ -82,8 +84,8 @@ fn main() {
 
         line.remove(line.len() - 1); // Drop the ';'
 
-        let mut it = line.split_whitespace();
-        let first = it.next().unwrap();
+        let mut it = line.split_whitespace().rev();
+        // let first = it.next().unwrap();
 
         let mut next = it.next();
 
@@ -118,9 +120,34 @@ fn main() {
                             }
                             else {
                                 if KEYWORDS.contains(&nx) {
-                                    // TODO: implement maybe recursion
+                                    // TODO: labels
+                                    match nx {
+                                        "BEG" => program.instructions.push(Instruction::BEG),
+                                        "END" => program.instructions.push(Instruction::END),
+                                        "BG" => {
+                                            if let Some(instr) = program.instructions.last() {
+                                                program.instructions.push(Instruction::BG(*expstack.last().unwrap(), instr));
+                                            }
+                                            else {
+                                                panic!("BG block must contain an instruction (line {lc})");
+                                            }
+                                        },
+                                        "BZ" => {
+                                            if let Some(instr) = program.instructions.last() {
+                                                program.instructions.push(Instruction::BZ(*expstack.last().unwrap(), instr));
+                                            }
+                                            else {
+                                                panic!("BZ block must contain an instruction (line {lc})");
+                                            }
+                                        },
+                                        "PRINT" => program.instructions.push(Instruction::PRINT(*expstack.last().unwrap())),
+                                        _ => {}
+                                    }
                                 }
-                                panic!("Unexpected word '{nx}' (line {})", lc);
+                                else {
+                                    // TODO: variabless
+                                    panic!("Unexpected word '{}' (line {})", nx, lc);
+                                }
                             }
                         }
                     }
@@ -176,29 +203,7 @@ fn main() {
             }
         }
 
-        if KEYWORDS.contains(&first) {
-            match first {
-                "BEG" => program.instructions.push(Instruction::BEG),
-                "END" => program.instructions.push(Instruction::END),
-                _ => {}
-            }
-        }
-        else {
-            if &first[0..=0] == "$" {
-                if non_default {
-                    vars.entry(first.to_string()).or_insert(expstack[0]);
-                }
-                else {
-                    if expstack.len() > 0 {
-                        panic!("Default variable initialization should only contain the name of one variable (line {lc})")
-                    }
-                    vars.entry(first.to_string()).or_insert(0);
-                }
-            }
-            else {
-                // Labels are for now ignored, until something like a pc (program counter) is implemented
-            }
-        }
+        println!("{:?}", expstack);
 
         lc += 1;
     }
