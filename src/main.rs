@@ -36,9 +36,6 @@ impl Program {
 enum Instruction {
     BEG,
     END,
-    DVAR(String),
-    VAR(String, Expression),
-    LABEL(String),
     GOTO(String),
     PRINT(Expression),
     BZ(Expression, *const Instruction),
@@ -60,12 +57,11 @@ enum Operator {
     Or
 }
 
-// bz 0 print 1
-
 fn main() {
     let mut lc = 1u32; // line counter
     let mut line = String::from("");
     let mut vars: HashMap<String, Expression> = HashMap::new();
+    let mut labels: HashMap<String, usize> = HashMap::new();
     let mut program = Program::new();
 
     while line != "END" {
@@ -76,8 +72,6 @@ fn main() {
         let mut opstack: Vec<Operator> = Vec::new();
         let mut expstack: Vec<Expression> = Vec::new();
 
-        let mut non_default = false;
-
         if line.chars().last().unwrap() != ';' {
             panic!("Error at line {lc}. Line must end with ';'");
         }
@@ -85,7 +79,6 @@ fn main() {
         line.remove(line.len() - 1); // Drop the ';'
 
         let mut it = line.split_whitespace().rev();
-        // let first = it.next().unwrap();
 
         let mut next = it.next();
 
@@ -111,12 +104,31 @@ fn main() {
                     "&" => opstack.push(Operator::And),
                     "|" => opstack.push(Operator::Or),
                     _ => {
-                        if vars.contains_key(nx) {
-                            expstack.push(*vars.get(nx).unwrap());
+                        if vars.contains_key(&nx[1..nx.len()]) {
+                            expstack.push(*vars.get(&nx[1..nx.len()]).unwrap());
                         }
                         else {
                             if nx == ":=" {
-                                non_default = true;
+                                next = it.next();
+                                if let Some(tmpnx) = next {
+                                    // Some checks
+                                    let try_expr = nx.parse::<Expression>();
+                                    if let Ok(_) = try_expr {
+                                        panic!("Variable cannot be a number (line {lc})");
+                                    }
+                                    if &tmpnx[0..=0] != "$" {
+                                        panic!("Unexpected word '{}'. Perhaps you meant ${}? (line {})", tmpnx, tmpnx, lc);
+                                    }
+
+                                    *vars.entry(tmpnx[1..tmpnx.len()].to_string()).or_insert(*expstack.last().unwrap()) = *expstack.last().unwrap();
+                                    if it.next() != None {
+                                        panic!("Cannot declare multiple variables at the same time (line {lc})");
+                                    }
+                                    break;
+                                }
+                                else {
+                                    panic!("Keyword ':=' requires a variable (line {lc})");
+                                }
                             }
                             else {
                                 if KEYWORDS.contains(&nx) {
@@ -145,8 +157,12 @@ fn main() {
                                     }
                                 }
                                 else {
-                                    // TODO: variabless
-                                    panic!("Unexpected word '{}' (line {})", nx, lc);
+                                    if &nx[0..=0] == "$" {
+                                        vars.insert(nx[1..nx.len()].to_string(), 0);
+                                    }
+                                    else {
+                                        panic!("Unexpected word '{}' (line {})", nx, lc);
+                                    }
                                 }
                             }
                         }
@@ -158,6 +174,7 @@ fn main() {
         }
 
         // Note: (1 + 1) and (1 1 +) are both considered correct by the interpreter and (should) act the same
+        // TODO: expstack must 'spit' a computed value, before assigning variables, printing etc.
         
         for op in opstack {
             if expstack.len() < 2 {
@@ -203,7 +220,7 @@ fn main() {
             }
         }
 
-        println!("{:?}", expstack);
+        println!("{:?} {:?}", expstack, vars);
 
         lc += 1;
     }
