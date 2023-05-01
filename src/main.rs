@@ -1,4 +1,4 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut, unused_variables)]
+// #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut, unused_variables)]
 use std::io::{stdin, stdout, Write};
 use std::collections::HashMap;
 
@@ -15,6 +15,52 @@ macro_rules! chop {
         $st.remove(0);
         $st.remove(0);
     };
+}
+
+fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<Expression>, lc: u32)  {
+    for op in opstack {
+        if expstack.len() < 2 {
+            panic!("Cannot apply operator {:?} to less than 2 numbers from the stack (line {})", op, lc);
+        }
+        use Operator::*;
+        match op {
+            Plus => {
+                update_stack!(expstack, +);
+            },
+            Minus => {
+                update_stack!(expstack, -);
+            },
+            Mul => {
+                update_stack!(expstack, *);
+            },
+            Div => {
+                update_stack!(expstack, /);
+            },
+            Mod => {
+                update_stack!(expstack, %);
+            },
+            Pow => {
+                let a = expstack[0];
+                let b = expstack[1];
+                chop!(expstack);
+                if b > 0 {
+                    expstack.push(a.pow(b as u32));
+                }
+                else {
+                    expstack.push(1 / a.pow(-b as u32));
+                }
+            },
+            Xor => {
+                update_stack!(expstack, ^);
+            },
+            And => {
+                update_stack!(expstack, &);
+            },
+            Or => {
+                update_stack!(expstack, |);
+            }
+        }
+    }
 }
 
 fn read(input: &mut String) {
@@ -119,7 +165,8 @@ fn main() {
                                     if &tmpnx[0..=0] != "$" {
                                         panic!("Unexpected word '{}'. Perhaps you meant ${}? (line {})", tmpnx, tmpnx, lc);
                                     }
-
+                                    
+                                    update_stack(&mut opstack, &mut expstack, lc);
                                     *vars.entry(tmpnx[1..tmpnx.len()].to_string()).or_insert(*expstack.last().unwrap()) = *expstack.last().unwrap();
                                     if it.next() != None {
                                         panic!("Cannot declare multiple variables at the same time (line {lc})");
@@ -176,50 +223,6 @@ fn main() {
         // Note: (1 + 1) and (1 1 +) are both considered correct by the interpreter and (should) act the same
         // TODO: expstack must 'spit' a computed value, before assigning variables, printing etc.
         
-        for op in opstack {
-            if expstack.len() < 2 {
-                panic!("Cannot apply operator {:?} to less than 2 numbers from the stack (line {})", op, lc);
-            }
-            use Operator::*;
-            match op {
-                Plus => {
-                    update_stack!(expstack, +);
-                },
-                Minus => {
-                    update_stack!(expstack, -);
-                },
-                Mul => {
-                    update_stack!(expstack, *);
-                },
-                Div => {
-                    update_stack!(expstack, /);
-                },
-                Mod => {
-                    update_stack!(expstack, %);
-                },
-                Pow => {
-                    let a = expstack[0];
-                    let b = expstack[1];
-                    chop!(expstack);
-                    if b > 0 {
-                        expstack.push(a.pow(b as u32));
-                    }
-                    else {
-                        expstack.push(1 / a.pow(-b as u32));
-                    }
-                },
-                Xor => {
-                    update_stack!(expstack, ^);
-                },
-                And => {
-                    update_stack!(expstack, &);
-                },
-                Or => {
-                    update_stack!(expstack, |);
-                }
-            }
-        }
-
         println!("{:?} {:?}", expstack, vars);
 
         lc += 1;
