@@ -17,7 +17,7 @@ macro_rules! chop {
     };
 }
 
-fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<Expression>, lc: u32)  {
+fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<NumValue>, lc: u32)  {
     for op in opstack {
         if expstack.len() < 2 {
             panic!("Cannot apply operator {:?} to less than 2 numbers from the stack (line {})", op, lc);
@@ -83,12 +83,12 @@ enum Instruction {
     BEG,
     END,
     GOTO(String),
-    PRINT(Expression),
-    BZ(Expression, *const Instruction),
-    BG(Expression, *const Instruction)
+    PRINT(NumValue),
+    BZ(NumValue, *const Instruction),
+    BG(NumValue, *const Instruction)
 }
 
-type Expression = i32;
+type NumValue = i32;
 
 #[derive(Debug)]
 enum Operator {
@@ -106,7 +106,7 @@ enum Operator {
 fn main() {
     let mut lc = 1u32; // line counter
     let mut line = String::from("");
-    let mut vars: HashMap<String, Expression> = HashMap::new();
+    let mut vars: HashMap<String, NumValue> = HashMap::new();
     let mut labels: HashMap<String, usize> = HashMap::new();
     let mut program = Program::new();
 
@@ -116,7 +116,7 @@ fn main() {
         line = line.trim().to_string();
 
         let mut opstack: Vec<Operator> = Vec::new();
-        let mut expstack: Vec<Expression> = Vec::new();
+        let mut expstack: Vec<NumValue> = Vec::new();
 
         if line.chars().last().unwrap() != ';' {
             panic!("Error at line {lc}. Line must end with ';'");
@@ -129,7 +129,7 @@ fn main() {
         let mut next = it.next();
 
         while let Some(nx) = next {
-            let try_expr = nx.parse::<Expression>();
+            let try_expr = nx.parse::<NumValue>();
             let mut isexp = true;
 
             match try_expr {
@@ -158,7 +158,7 @@ fn main() {
                                 next = it.next();
                                 if let Some(tmpnx) = next {
                                     // Some checks
-                                    let try_expr = nx.parse::<Expression>();
+                                    let try_expr = nx.parse::<NumValue>();
                                     if let Ok(_) = try_expr {
                                         panic!("Variable cannot be a number (line {lc})");
                                     }
