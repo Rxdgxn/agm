@@ -18,6 +18,9 @@ macro_rules! chop {
 }
 
 fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<NumValue>, lc: u32)  {
+    // TODO: must take into consideration order of operations
+    expstack.reverse();
+    opstack.reverse();
     for op in opstack {
         if expstack.len() < 2 {
             panic!("Cannot apply operator {:?} to less than 2 numbers from the stack (line {})", op, lc);
@@ -43,11 +46,11 @@ fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<NumValue>, lc: u
                 let a = expstack[0];
                 let b = expstack[1];
                 chop!(expstack);
-                if a > 0 {
-                    expstack.push(b.pow(a as u32));
+                if b > 0 {
+                    expstack.push(a.pow(b as u32));
                 }
                 else {
-                    expstack.push(1 / b.pow(-a as u32));
+                    expstack.push(1 / a.pow(-b as u32));
                 }
             },
             Xor => {
