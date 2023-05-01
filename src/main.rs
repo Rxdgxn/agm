@@ -43,11 +43,11 @@ fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<NumValue>, lc: u
                 let a = expstack[0];
                 let b = expstack[1];
                 chop!(expstack);
-                if b > 0 {
-                    expstack.push(a.pow(b as u32));
+                if a > 0 {
+                    expstack.push(b.pow(a as u32));
                 }
                 else {
-                    expstack.push(1 / a.pow(-b as u32));
+                    expstack.push(1 / b.pow(-a as u32));
                 }
             },
             Xor => {
