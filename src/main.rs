@@ -82,13 +82,14 @@ impl Program {
     }
 }
 
+#[derive(Clone, Debug)]
 enum Instruction {
     BEG,
     END,
     GOTO(String),
     PRINT(NumValue),
-    BZ(NumValue, *const Instruction),
-    BG(NumValue, *const Instruction)
+    BZ(NumValue, Box<Instruction>),
+    BG(NumValue, Box<Instruction>)
 }
 
 type NumValue = i32;
@@ -188,7 +189,9 @@ fn main() {
                                         "END" => program.instructions.push(Instruction::END),
                                         "BG" => {
                                             if let Some(instr) = program.instructions.last() {
-                                                program.instructions.push(Instruction::BG(*expstack.last().unwrap(), instr));
+                                                program.instructions.push(Instruction::BG(*expstack.last().unwrap(), Box::new(instr.clone())));
+                                                // Lazy solution for not repeating instructions
+                                                program.instructions.remove(program.instructions.len() - 2);
                                             }
                                             else {
                                                 panic!("BG block must contain an instruction (line {lc})");
@@ -196,13 +199,17 @@ fn main() {
                                         },
                                         "BZ" => {
                                             if let Some(instr) = program.instructions.last() {
-                                                program.instructions.push(Instruction::BZ(*expstack.last().unwrap(), instr));
+                                                program.instructions.push(Instruction::BZ(*expstack.last().unwrap(), Box::new(instr.clone())));
+                                                program.instructions.remove(program.instructions.len() - 2);
                                             }
                                             else {
                                                 panic!("BZ block must contain an instruction (line {lc})");
                                             }
                                         },
-                                        "PRINT" => program.instructions.push(Instruction::PRINT(*expstack.last().unwrap())),
+                                        "PRINT" => {
+                                            update_stack(&mut opstack, &mut expstack, lc);
+                                            program.instructions.push(Instruction::PRINT(*expstack.last().unwrap()));
+                                        },
                                         _ => {}
                                     }
                                 }
@@ -224,10 +231,32 @@ fn main() {
         }
 
         // Note: (1 + 1) and (1 1 +) are both considered correct by the interpreter and (should) act the same
-        // TODO: expstack must 'spit' a computed value, before assigning variables, printing etc.
+        // Note: expstack must 'spit' a computed value, before assigning variables, printing etc.
         
         println!("{:?} {:?}", expstack, vars);
 
         lc += 1;
+    }
+
+    for instr in program.instructions {
+        execute_instr(instr);
+    }
+}
+
+fn execute_instr(instr: Instruction) {
+    use Instruction::*;
+    match instr {
+        BG(num, ins) => {
+            if num > 0 {
+                execute_instr(*ins);
+            }
+        },
+        BZ(num, ins) => {
+            if num == 0 {
+                execute_instr(*ins);
+            }
+        },
+        PRINT(num) => println!("{num}"),
+        _ => {}
     }
 }
