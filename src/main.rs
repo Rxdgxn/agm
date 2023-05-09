@@ -4,6 +4,41 @@ use std::collections::HashMap;
 
 const KEYWORDS: [&str; 6] = ["BEG", "END", "BG", "BZ", "GOTO", "PRINT"];
 
+struct Program {
+    instructions: Vec<Instruction>
+}
+impl Program {
+    fn new() -> Self {
+        Self {
+            instructions: Vec::new()
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Instruction {
+    END,
+    GOTO(String),
+    PRINT(NumValue),
+    BZ(NumValue, Box<Instruction>),
+    BG(NumValue, Box<Instruction>)
+}
+
+type NumValue = i32;
+
+#[derive(Debug)]
+enum Operator {
+    Plus,
+    Minus,
+    Mul,
+    Div,
+    Mod,
+    Pow,
+    Xor,
+    And,
+    Or
+}
+
 macro_rules! update_stack {
     ($st: expr, $op: tt) => {
         $st.push($st[0] $op $st[1]);
@@ -17,7 +52,7 @@ macro_rules! chop {
     };
 }
 
-fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<NumValue>, lc: u32)  {
+fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<NumValue>, lc: usize)  {
     // TODO: must take into consideration order of operations
     expstack.reverse();
     opstack.reverse();
@@ -61,7 +96,7 @@ fn update_stack(opstack: &mut Vec<Operator>, expstack: &mut Vec<NumValue>, lc: u
             },
             Or => {
                 update_stack!(expstack, |);
-            }
+            },
         }
     }
 }
@@ -71,44 +106,8 @@ fn read(input: &mut String) {
     stdin().read_line(input).expect("Read");
 }
 
-struct Program {
-    instructions: Vec<Instruction>
-}
-impl Program {
-    fn new() -> Self {
-        Self {
-            instructions: Vec::new()
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-enum Instruction {
-    BEG,
-    END,
-    GOTO(String),
-    PRINT(NumValue),
-    BZ(NumValue, Box<Instruction>),
-    BG(NumValue, Box<Instruction>)
-}
-
-type NumValue = i32;
-
-#[derive(Debug)]
-enum Operator {
-    Plus,
-    Minus,
-    Mul,
-    Div,
-    Mod,
-    Pow,
-    Xor,
-    And,
-    Or
-}
-
 fn main() {
-    let mut lc = 1u32; // line counter
+    let mut lc = 1usize; // line counter
     let mut line = String::from("");
     let mut vars: HashMap<String, NumValue> = HashMap::new();
     let mut labels: HashMap<String, usize> = HashMap::new();
@@ -183,9 +182,7 @@ fn main() {
                             }
                             else {
                                 if KEYWORDS.contains(&nx) {
-                                    // TODO: labels
                                     match nx {
-                                        "BEG" => program.instructions.push(Instruction::BEG),
                                         "END" => program.instructions.push(Instruction::END),
                                         "BG" => {
                                             if let Some(instr) = program.instructions.last() {
@@ -218,7 +215,20 @@ fn main() {
                                         vars.insert(nx[1..nx.len()].to_string(), 0);
                                     }
                                     else {
-                                        panic!("Unexpected word '{}' (line {})", nx, lc);
+                                        if expstack.is_empty() && opstack.is_empty() {
+                                            if let Some(tmpnx) = it.clone().next() {
+                                                if tmpnx != "GOTO" {
+                                                    panic!("Unexpected word '{}' (line {})", nx, lc);
+                                                }
+                                                else {
+                                                    program.instructions.push(Instruction::GOTO(nx.to_string()));
+                                                }
+                                            }
+                                            labels.insert(nx.to_string(), lc - 1);
+                                        }
+                                        else {
+                                            panic!("Unexpected word '{}' (line {})", nx, lc);
+                                        }
                                     }
                                 }
                             }
@@ -233,30 +243,40 @@ fn main() {
         // Note: (1 + 1) and (1 1 +) are both considered correct by the interpreter and (should) act the same
         // Note: expstack must 'spit' a computed value, before assigning variables, printing etc.
         
-        println!("{:?} {:?}", expstack, vars);
 
         lc += 1;
     }
 
-    for instr in program.instructions {
-        execute_instr(instr);
+
+    let mut idx = 0;
+    while idx < program.instructions.len() {
+        let instr = &program.instructions[idx];
+        execute_instr(instr.clone(), &mut idx, labels.clone());
     }
 }
 
-fn execute_instr(instr: Instruction) {
+// TODO: major issue inside labels, since '$x := ...' is not actually counted as an instruction, so when jumping back to the label definition
+// there is no instruction to execute, resulting in infinite recursion
+
+fn execute_instr(instr: Instruction, idx: &mut usize, labels: HashMap<String, usize>) {
     use Instruction::*;
     match instr {
         BG(num, ins) => {
             if num > 0 {
-                execute_instr(*ins);
+                execute_instr(*ins, idx, labels);
             }
         },
         BZ(num, ins) => {
             if num == 0 {
-                execute_instr(*ins);
+                execute_instr(*ins, idx, labels);
             }
         },
         PRINT(num) => println!("{num}"),
+        GOTO(label) => {
+            *idx = *labels.get(&label).unwrap();
+            return;
+        }
         _ => {}
     }
+    *idx += 1;
 }
