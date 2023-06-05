@@ -31,17 +31,19 @@ enum Value {
     Var(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Operator {
     Plus,
     Minus,
     Mul,
     Div,
-    Mod,
-    Pow,
-    Xor,
-    And,
-    Or
+    Open,
+    Closed
+}
+
+enum Token {
+    Op(Operator),
+    Val(Value)
 }
 
 fn read(input: &mut String) {
@@ -61,9 +63,8 @@ fn main() {
         read(&mut line);
         line = line.trim().to_string();
 
-        // These two will (most likely) help with the Reverse Polish Notation
         let mut opstack: Vec<Operator> = Vec::new();
-        let mut valstack: Vec<Value> = Vec::new();
+        let mut tokstack: Vec<Token> = Vec::new();
 
         if line.chars().last().unwrap() != ';' {
             panic!("Error at line {lc}. Line must end with ';'");
@@ -73,8 +74,23 @@ fn main() {
         let mut it = line.split_whitespace().rev();
         let mut next = it.next();
 
-        while let Some(nx) = next {
-            // RPN
+        while let Some(word) = next {
+            let try_i32 = word.parse::<i32>();
+            match try_i32 {
+                Ok(n) => tokstack.push(Token::Val(Value::Int(n))),
+                _ => continue
+            }
+
+            if word == ")" {
+                while *opstack.last().unwrap() != Operator::Open {
+                    tokstack.push(Token::Op(opstack.pop().unwrap()));
+                }
+                opstack.pop().unwrap();
+            }
+            else if word == "(" {
+                opstack.push(Operator::Open)
+            }
+            // TODO
         }
     }
 }
