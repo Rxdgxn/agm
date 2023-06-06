@@ -71,26 +71,16 @@ fn main() {
         }
         line.remove(line.len() - 1); // Drop the ';'
 
-        let mut it = line.split_whitespace().rev();
+        let mut it = line.split_whitespace();
         let mut next = it.next();
 
         while let Some(word) = next {
             let try_i32 = word.parse::<i32>();
             match try_i32 {
                 Ok(n) => tokstack.push(Token::Val(Value::Int(n))),
-                _ => continue
+                _ => {}
             }
-
-            if word == ")" {
-                while *opstack.last().unwrap() != Operator::Open {
-                    tokstack.push(Token::Op(opstack.pop().unwrap()));
-                }
-                opstack.pop().unwrap();
-            }
-            else if word == "(" {
-                opstack.push(Operator::Open)
-            }
-            // TODO
+            // TODO: this should temporarily turn into a math expression evaluator
         }
     }
 }
