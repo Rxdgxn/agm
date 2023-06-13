@@ -84,45 +84,48 @@ fn main() {
             let mut is_num = false;
 
             let mut var = String::new();
+            let mut is_var = false;
 
             for (i, ch) in word.chars().enumerate() {
-                
                 if ch.is_alphabetic() {
+                    if is_num { panic!("Syntax error"); }
+                    is_var = true;
                     var.push(ch);
                 }
-                else {
-                    if !var.is_empty() {
-                        tokstack.push(Val(Var(var)));
-                        var = String::new();
-                    }
-
-                    if !ch.is_digit(10) || i == word.len() - 1 {
-                        if is_num {
-                            tokstack.push(Val(Int(num)));
-                        }
-                        is_num = false;
-                        num = 0;
-                        
-                        tokstack.push(match ch {
-                            '(' => Op(Open),
-                            ')' => Op(Closed),
-                            '+' => Op(Plus),
-                            '-' => Op(Minus),
-                            '*' => Op(Mul),
-                            '/' => Op(Div),
-                            _ => {
-                                if ch.is_digit(10) {
-                                    Val(Int(ch as i32 - 48))
-                                }
-                                else {
-                                    panic!("Oh oh")
-                                }
-                            }
-                        });
+                else if ch.is_numeric() {
+                    if is_var {
+                        var.push(ch);
                     }
                     else {
-                        num = num * 10 + (ch as i32 - 48);
                         is_num = true;
+                        num = num * 10 + (ch as i32 - 48);
+                    }
+                }
+                else {
+                    if is_num { tokstack.push(Val(Int(num))); }
+                    if is_var { tokstack.push(Val(Var(var.clone()))); }
+                    is_num = false;
+                    is_var = false;
+                    num = 0;
+                    var.clear();
+                    
+                    tokstack.push(Op(match ch {
+                        '(' => Open,
+                        ')' => Closed,
+                        '+' => Plus,
+                        '-' => Minus,
+                        '*' => Mul,
+                        '/' => Div,
+                        _ => panic!("Uh oh")
+                    }));
+                }
+
+                if i == word.len() - 1 {
+                    if is_var {
+                        tokstack.push(Val(Var(var.clone())));
+                    }
+                    if is_num {
+                        tokstack.push(Val(Int(num)));
                     }
                 }
             }
