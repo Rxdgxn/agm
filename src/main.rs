@@ -108,16 +108,22 @@ fn main() {
                     is_var = false;
                     num = 0;
                     var.clear();
-                    
-                    tokstack.push(Op(match ch {
-                        '(' => Open,
-                        ')' => Closed,
-                        '+' => Plus,
-                        '-' => Minus,
-                        '*' => Mul,
-                        '/' => Div,
-                        _ => panic!("Uh oh")
-                    }));
+
+                    if ch == '(' {
+                        tokstack.push(Op(Open));
+                    }
+                    else if ch == ')' {
+                        tokstack.push(Op(Closed));
+                    }
+                    else {
+                        opstack.push(match ch {
+                            '+' => Plus,
+                            '-' => Minus,
+                            '*' => Mul,
+                            '/' => Div,
+                            _ => panic!("Uh oh")
+                        });
+                    }
                 }
 
                 if i == word.len() - 1 {
@@ -133,6 +139,7 @@ fn main() {
             next = it.next();
         }
 
-        println!("{:?}", tokstack);
+        println!("Tokens: {:?}", tokstack);
+        println!("Operators: {:?}", opstack);
     }
 }
