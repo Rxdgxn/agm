@@ -41,19 +41,17 @@ enum Token {
 
 fn precedence(op: Operator) -> i32 {
     match op {
+        Open => 0,
+        Closed => 0,
         Plus => 1,
         Minus => 1,
         Mul => 2,
-        Div => 2,
-        _ => panic!("Something went wrong")
+        Div => 2
     }    
 }
 
 fn unwindopstack(opstack: Vec<Operator>, op: Operator) -> bool {
     if opstack.is_empty() {
-        return false;
-    }
-    if opstack.last().unwrap() == &Open || opstack.last().unwrap() == &Closed {
         return false;
     }
     return precedence(*opstack.last().unwrap()) >= precedence(op);
@@ -205,7 +203,9 @@ fn main() {
             }
         }
         
-        rpnstack.push(Op(*opstack.last().unwrap()));
+        for op in opstack.iter().rev() {
+            rpnstack.push(Op(*op));
+        }
         evalrpn(rpnstack);
     }
 }
