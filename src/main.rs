@@ -7,17 +7,6 @@ use Value::*;
 
 const KEYWORDS: [&str; 6] = ["BEG", "END", "BG", "BZ", "GOTO", "PRINT"];
 
-struct Program {
-    instructions: Vec<Instruction>
-}
-impl Program {
-    fn new() -> Self {
-        Self {
-            instructions: Vec::new()
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 enum Instruction {
     END,
@@ -75,12 +64,43 @@ fn read(input: &mut String) {
     stdin().read_line(input).expect("Read");
 }
 
+// This is only temporary, and should only be used in the math evaluator stage
+fn evalrpn(rpnstack: Vec<Token>) {
+    let mut numstack: Vec<i32> = Vec::new();
+
+    for token in rpnstack {
+        match token {
+            Val(val) => {
+                numstack.push(match val {
+                    Var(_) => panic!("Variables are not yet supported"),
+                    Int(int) => int
+                });
+            }
+            Op(op) => {
+                if numstack.len() < 2 { panic!("Not enough arguments for operator {:?}", op); }
+                
+                let b = numstack.pop().unwrap();
+                let a = numstack.pop().unwrap();
+                numstack.push(match op {
+                    Plus => a + b,
+                    Minus => a - b,
+                    Mul => a * b,
+                    Div => a / b,
+                    _ => panic!("Something went wrong at parsing to RPN")
+                });
+            }
+        }
+    }
+
+    if numstack.len() > 1 { panic!("Too many numbers for the given operators"); }
+    println!("{}", numstack.last().unwrap());
+}
+
 fn main() {
     let mut lc = 1usize; // line counter
     let mut line = String::from("");
-    let mut vars: HashMap<String, Value> = HashMap::new();
+    let mut vars: HashMap<String, i32> = HashMap::new();
     let mut labels: HashMap<String, usize> = HashMap::new();
-    let mut program = Program::new();
 
     loop {
         line = String::from("");
@@ -186,6 +206,6 @@ fn main() {
         }
         
         rpnstack.push(Op(*opstack.last().unwrap()));
-        println!("{:?}", rpnstack);
+        evalrpn(rpnstack);
     }
 }
