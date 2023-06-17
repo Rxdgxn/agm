@@ -1,6 +1,9 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut, unused_variables)]
 use std::io::{stdin, stdout, Write};
 use std::collections::HashMap;
+use Token::*;
+use Operator::*;
+use Value::*;
 
 const KEYWORDS: [&str; 6] = ["BEG", "END", "BG", "BZ", "GOTO", "PRINT"];
 
@@ -47,6 +50,26 @@ enum Token {
     Val(Value)
 }
 
+fn precedence(op: Operator) -> i32 {
+    match op {
+        Plus => 1,
+        Minus => 1,
+        Mul => 2,
+        Div => 2,
+        _ => panic!("Something went wrong")
+    }    
+}
+
+fn unwindopstack(opstack: Vec<Operator>, op: Operator) -> bool {
+    if opstack.is_empty() {
+        return false;
+    }
+    if opstack.last().unwrap() == &Open || opstack.last().unwrap() == &Closed {
+        return false;
+    }
+    return precedence(*opstack.last().unwrap()) >= precedence(op);
+}
+
 fn read(input: &mut String) {
     stdout().flush().expect("Flush");
     stdin().read_line(input).expect("Read");
@@ -59,27 +82,27 @@ fn main() {
     let mut labels: HashMap<String, usize> = HashMap::new();
     let mut program = Program::new();
 
-    while line != "END" {
+    loop {
         line = String::from("");
         read(&mut line);
         line = line.trim().to_string();
 
         let mut opstack: Vec<Operator> = Vec::new();
         let mut tokstack: Vec<Token> = Vec::new();
+        let mut rpnstack: Vec<Token> = Vec::new();
 
         if line.chars().last().unwrap() != ';' {
             panic!("Error at line {lc}. Line must end with ';'");
         }
         line.remove(line.len() - 1); // Drop the ';'
+        if line == "END" {
+            break;
+        }
 
         let mut it = line.split_whitespace();
         let mut next = it.next();
 
         while let Some(word) = next {
-            use Token::*;
-            use Operator::*;
-            use Value::*;
-
             let mut num = 0i32;
             let mut is_num = false;
 
@@ -116,12 +139,12 @@ fn main() {
                         tokstack.push(Op(Closed));
                     }
                     else {
-                        opstack.push(match ch {
-                            '+' => Plus,
-                            '-' => Minus,
-                            '*' => Mul,
-                            '/' => Div,
-                            _ => panic!("Uh oh")
+                        tokstack.push(match ch {
+                            '+' => Op(Plus),
+                            '-' => Op(Minus),
+                            '*' => Op(Mul),
+                            '/' => Op(Div),
+                            _ => panic!("Something went wrong")
                         });
                     }
                 }
@@ -139,7 +162,30 @@ fn main() {
             next = it.next();
         }
 
-        println!("Tokens: {:?}", tokstack);
-        println!("Operators: {:?}", opstack);
+        for token in &tokstack {
+            match token {
+                Val(v) => rpnstack.push(Val(v.clone())),
+                Op(op) => {
+                    match *op {
+                        Open => opstack.push(*op),
+                        Closed => {
+                            while opstack.last().unwrap() != &Open {
+                                rpnstack.push(Op(opstack.pop().unwrap()));
+                            }
+                            opstack.pop().unwrap();
+                        },
+                        any => {
+                            while unwindopstack(opstack.clone(), any) {
+                                rpnstack.push(Op(opstack.pop().unwrap()));
+                            }
+                            opstack.push(any);
+                        }
+                    }
+                }
+            }
+        }
+        
+        rpnstack.push(Op(*opstack.last().unwrap()));
+        println!("{:?}", rpnstack);
     }
 }
