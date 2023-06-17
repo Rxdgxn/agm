@@ -20,7 +20,7 @@ enum Instruction {
 #[derive(Clone, Debug)]
 enum Value {
     Int(i32),
-    Var(String)
+    Word(String)
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -62,7 +62,7 @@ fn read(input: &mut String) {
     stdin().read_line(input).expect("Read");
 }
 
-// This is only temporary, and should only be used in the math evaluator stage
+// This is temporary, and should only be used in the math evaluator stage
 fn evalrpn(rpnstack: Vec<Token>) {
     let mut numstack: Vec<i32> = Vec::new();
 
@@ -70,7 +70,7 @@ fn evalrpn(rpnstack: Vec<Token>) {
         match token {
             Val(val) => {
                 numstack.push(match val {
-                    Var(_) => panic!("Variables are not yet supported"),
+                    Word(_) => panic!("Variables are not yet supported"),
                     Int(int) => int
                 });
             }
@@ -120,22 +120,22 @@ fn main() {
         let mut it = line.split_whitespace();
         let mut next = it.next();
 
-        while let Some(word) = next {
+        while let Some(partition) = next {
             let mut num = 0i32;
             let mut is_num = false;
 
-            let mut var = String::new();
-            let mut is_var = false;
+            let mut word = String::new();
+            let mut is_word = false;
 
-            for (i, ch) in word.chars().enumerate() {
+            for (i, ch) in partition.chars().enumerate() {
                 if ch.is_alphabetic() {
                     if is_num { panic!("Syntax error"); }
-                    is_var = true;
-                    var.push(ch);
+                    is_word = true;
+                    word.push(ch);
                 }
                 else if ch.is_numeric() {
-                    if is_var {
-                        var.push(ch);
+                    if is_word {
+                        word.push(ch);
                     }
                     else {
                         is_num = true;
@@ -144,11 +144,11 @@ fn main() {
                 }
                 else {
                     if is_num { tokstack.push(Val(Int(num))); }
-                    if is_var { tokstack.push(Val(Var(var.clone()))); }
+                    if is_word { tokstack.push(Val(Word(word.clone()))); }
                     is_num = false;
-                    is_var = false;
+                    is_word = false;
                     num = 0;
-                    var.clear();
+                    word.clear();
 
                     if ch == '(' {
                         tokstack.push(Op(Open));
@@ -167,9 +167,9 @@ fn main() {
                     }
                 }
 
-                if i == word.len() - 1 {
-                    if is_var {
-                        tokstack.push(Val(Var(var.clone())));
+                if i == partition.len() - 1 {
+                    if is_word {
+                        tokstack.push(Val(Word(word.clone())));
                     }
                     if is_num {
                         tokstack.push(Val(Int(num)));
