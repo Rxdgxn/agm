@@ -63,14 +63,14 @@ fn read(input: &mut String) {
 }
 
 // This is temporary, and should only be used in the math evaluator stage
-fn evalrpn(rpnstack: Vec<Token>) {
+fn evalrpn(rpnstack: Vec<Token>, vars: HashMap<String, i32>) -> i32 {
     let mut numstack: Vec<i32> = Vec::new();
 
     for token in rpnstack {
         match token {
             Val(val) => {
                 numstack.push(match val {
-                    Word(_) => panic!("Variables are not yet supported"),
+                    Word(w) => vars[&w],
                     Int(int) => int
                 });
             }
@@ -91,12 +91,13 @@ fn evalrpn(rpnstack: Vec<Token>) {
     }
 
     if numstack.len() > 1 { panic!("Too many numbers for the given operators"); }
-    println!("{}", numstack.last().unwrap());
+    
+    return *numstack.last().unwrap();
 }
 
 fn main() {
     let mut lc = 1usize; // line counter
-    let mut line = String::from("");
+    let mut line: String;
     let mut vars: HashMap<String, i32> = HashMap::new();
     let mut labels: HashMap<String, usize> = HashMap::new();
 
@@ -108,6 +109,7 @@ fn main() {
         let mut opstack: Vec<Operator> = Vec::new();
         let mut tokstack: Vec<Token> = Vec::new();
         let mut rpnstack: Vec<Token> = Vec::new();
+        let mut var = String::new();
 
         if line.chars().last().unwrap() != ';' {
             panic!("Error at line {lc}. Line must end with ';'");
@@ -115,6 +117,17 @@ fn main() {
         line.remove(line.len() - 1); // Drop the ';'
         if line == "END" {
             break;
+        }
+
+        if line.contains(":=") {
+            let mut split = line.split(":=");
+
+            var = split.next().unwrap().trim().to_string();
+            if &var[0..=0] != "$" {
+                panic!("Variables must begin with $! (line {lc})");
+            }
+
+            line = split.next().unwrap().trim().to_string();
         }
 
         let mut it = line.split_whitespace();
@@ -128,7 +141,7 @@ fn main() {
             let mut is_word = false;
 
             for (i, ch) in partition.chars().enumerate() {
-                if ch.is_alphabetic() {
+                if ch.is_alphabetic() || ch == '$' {
                     if is_num { panic!("Syntax error"); }
                     is_word = true;
                     word.push(ch);
@@ -144,7 +157,12 @@ fn main() {
                 }
                 else {
                     if is_num { tokstack.push(Val(Int(num))); }
-                    if is_word { tokstack.push(Val(Word(word.clone()))); }
+                    if is_word {
+                        if !vars.contains_key(&word) && !KEYWORDS.contains(&(&word as &str)) {
+                            panic!("Unexpected word {word} at line {lc}");
+                        }
+                        tokstack.push(Val(Word(word.clone())));
+                    }
                     is_num = false;
                     is_word = false;
                     num = 0;
@@ -169,11 +187,12 @@ fn main() {
 
                 if i == partition.len() - 1 {
                     if is_word {
+                        if !vars.contains_key(&word) && !KEYWORDS.contains(&(&word as &str)) {
+                            panic!("Unexpected word {word} at line {lc}");
+                        }
                         tokstack.push(Val(Word(word.clone())));
                     }
-                    if is_num {
-                        tokstack.push(Val(Int(num)));
-                    }
+                    if is_num { tokstack.push(Val(Int(num))); }
                 }
             }
 
@@ -206,6 +225,14 @@ fn main() {
         for op in opstack.iter().rev() {
             rpnstack.push(Op(*op));
         }
-        evalrpn(rpnstack);
+
+        if !var.is_empty() {
+            vars.insert(var, evalrpn(rpnstack, vars.clone()));
+        }
+        else {
+            println!("> {}", evalrpn(rpnstack, vars.clone()));
+        }
+
+        lc += 1;
     }
 }
