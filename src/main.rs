@@ -9,7 +9,6 @@ const KEYWORDS: [&str; 6] = ["BEG", "END", "BG", "BZ", "GOTO", "PRINT"];
 
 #[derive(Clone, Debug)]
 enum Instruction {
-    END,
     GOTO(String),
     PRINT(Value),
     BZ(Value, Box<Instruction>),
@@ -33,7 +32,7 @@ enum Operator {
     Closed
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Token {
     Op(Operator),
     Val(Value)
@@ -63,14 +62,17 @@ fn read(input: &mut String) {
 }
 
 // This is temporary, and should only be used in the math evaluator stage
-fn evalrpn(rpnstack: Vec<Token>, vars: HashMap<String, i32>) -> i32 {
+fn evalrpn(rpnstack: Vec<Token>, vars: HashMap<String, i32>, lc: usize) -> i32 {
     let mut numstack: Vec<i32> = Vec::new();
 
     for token in rpnstack {
         match token {
             Val(val) => {
                 numstack.push(match val {
-                    Word(w) => vars[&w],
+                    Word(w) => match vars.contains_key(&w) {
+                        true => vars[&w],
+                        false => panic!("Unknown word {w} at line {lc}")
+                    }
                     Int(int) => int
                 });
             }
@@ -158,9 +160,6 @@ fn main() {
                 else {
                     if is_num { tokstack.push(Val(Int(num))); }
                     if is_word {
-                        if !vars.contains_key(&word) && !KEYWORDS.contains(&(&word as &str)) {
-                            panic!("Unexpected word {word} at line {lc}");
-                        }
                         tokstack.push(Val(Word(word.clone())));
                     }
                     is_num = false;
@@ -187,9 +186,6 @@ fn main() {
 
                 if i == partition.len() - 1 {
                     if is_word {
-                        if !vars.contains_key(&word) && !KEYWORDS.contains(&(&word as &str)) {
-                            panic!("Unexpected word {word} at line {lc}");
-                        }
                         tokstack.push(Val(Word(word.clone())));
                     }
                     if is_num { tokstack.push(Val(Int(num))); }
@@ -221,16 +217,35 @@ fn main() {
                 }
             }
         }
+
+        if rpnstack.len() == 1 && var.is_empty() {
+            match rpnstack.clone().last().unwrap() {
+                Op(o) => panic!("Expected 2 operands for operator {:?} at line {lc}", o),
+                Val(v) => match v {
+                    Int(_) => {},
+                    Word(w) => {
+                        if &w[0..=0] == "$" {
+                            vars.insert(w.clone(), 0);
+                        }
+                        else {
+                            labels.insert(w.clone(), lc);
+                        }
+                        lc += 1;
+                        continue;
+                    }
+                }
+            }
+        }
         
         for op in opstack.iter().rev() {
             rpnstack.push(Op(*op));
         }
 
         if !var.is_empty() {
-            vars.insert(var, evalrpn(rpnstack, vars.clone()));
+            vars.insert(var, evalrpn(rpnstack, vars.clone(), lc));
         }
         else {
-            println!("> {}", evalrpn(rpnstack, vars.clone()));
+            println!("> {}", evalrpn(rpnstack, vars.clone(), lc));
         }
 
         lc += 1;
