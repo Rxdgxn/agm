@@ -1,4 +1,4 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut, unused_variables)]
+// #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut, unused_variables)]
 use std::io::{stdin, stdout, Write};
 use std::collections::HashMap;
 use Token::*;
@@ -62,19 +62,27 @@ fn read(input: &mut String) {
 }
 
 // This is temporary, and should only be used in the math evaluator stage
-fn evalrpn(rpnstack: Vec<Token>, vars: HashMap<String, i32>, lc: usize) -> i32 {
+fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize) -> i32 {
     let mut numstack: Vec<i32> = Vec::new();
 
     for token in rpnstack {
         match token {
             Val(val) => {
-                numstack.push(match val {
-                    Word(w) => match vars.contains_key(&w) {
-                        true => vars[&w],
-                        false => panic!("Unknown word {w} at line {lc}")
+                match val {
+                    Int(int) => numstack.push(*int),
+                    Word(w) => match vars.contains_key(w) {
+                        true => numstack.push(vars[w]),
+                        false => {
+                            if KEYWORDS.contains(&(w as &str)) {
+                                match w as &str {
+                                    "PRINT" => println!("{}", evalrpn(&rpnstack[1..rpnstack.len()].to_vec(), vars, lc)),
+                                    _ => todo!()
+                                }
+                            }
+                            else { panic!("Unknown word {w} at line {lc}"); }
+                        }
                     }
-                    Int(int) => int
-                });
+                }
             }
             Op(op) => {
                 if numstack.len() < 2 { panic!("Not enough arguments for operator {:?}", op); }
@@ -242,10 +250,10 @@ fn main() {
         }
 
         if !var.is_empty() {
-            vars.insert(var, evalrpn(rpnstack, vars.clone(), lc));
+            vars.insert(var, evalrpn(&rpnstack, &vars, lc));
         }
         else {
-            println!("> {}", evalrpn(rpnstack, vars.clone(), lc));
+            evalrpn(&rpnstack, &vars, lc);
         }
 
         lc += 1;
