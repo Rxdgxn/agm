@@ -4,16 +4,17 @@ use std::collections::HashMap;
 use Token::*;
 use Operator::*;
 use Value::*;
+use Instruction::*;
 
 const KEYWORDS: [&str; 6] = ["BEG", "END", "BG", "BZ", "GOTO", "PRINT"];
 
 #[derive(Clone, Debug)]
-enum Instruction {
-    GOTO(String),
-    PRINT(Value),
-    BZ(Value, Box<Instruction>),
-    BG(Value, Box<Instruction>),
-    MUTATE(Value, Value) // stub
+enum Instruction<> {
+    PRINT(Vec<Token>),
+    GOTO(Token),
+    BZ(Vec<Token>, Box<Instruction>),
+    BG(Vec<Token>, Box<Instruction>),
+    MUTATE(String, Vec<Token>) // stub
 }
 
 #[derive(Clone, Debug)]
@@ -61,8 +62,7 @@ fn read(input: &mut String) {
     stdin().read_line(input).expect("Read");
 }
 
-// This is temporary, and should only be used in the math evaluator stage
-fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize) -> i32 {
+fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, program: &mut Vec<Instruction>) -> i32 {
     let mut numstack: Vec<i32> = Vec::new();
 
     for token in rpnstack {
@@ -75,7 +75,9 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize) -> i32
                         false => {
                             if KEYWORDS.contains(&(w as &str)) {
                                 match w as &str {
-                                    "PRINT" => println!("{}", evalrpn(&rpnstack[1..rpnstack.len()].to_vec(), vars, lc)),
+                                    // The 1 index should be valid when the rpnstack is passed to the instruction
+                                    "PRINT" => program.push(PRINT(rpnstack[1..rpnstack.len()].to_vec())),
+                                    "GOTO" => program.push(GOTO((&rpnstack[1]).clone())),
                                     _ => todo!()
                                 }
                             }
@@ -105,11 +107,16 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize) -> i32
     return *numstack.last().unwrap();
 }
 
+fn evalprogram(program: Vec<Instruction>) {
+    
+}
+
 fn main() {
     let mut lc = 1usize; // line counter
     let mut line: String;
     let mut vars: HashMap<String, i32> = HashMap::new();
     let mut labels: HashMap<String, usize> = HashMap::new();
+    let mut program: Vec<Instruction> = Vec::new();
 
     loop {
         line = String::from("");
@@ -250,12 +257,11 @@ fn main() {
         }
 
         if !var.is_empty() {
-            vars.insert(var, evalrpn(&rpnstack, &vars, lc));
-        }
-        else {
-            evalrpn(&rpnstack, &vars, lc);
+            vars.insert(var, evalrpn(&rpnstack, &vars, lc, &mut program));
         }
 
         lc += 1;
     }
+
+    evalprogram(program);
 }
