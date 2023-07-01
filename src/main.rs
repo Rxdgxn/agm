@@ -6,7 +6,7 @@ use Operator::*;
 use Value::*;
 use Instruction::*;
 
-const KEYWORDS: [&str; 6] = ["BEG", "END", "BG", "BZ", "GOTO", "PRINT"];
+const KEYWORDS: [&str; 4] = ["BG", "BZ", "GOTO", "PRINT"];
 
 #[derive(Clone, Debug)]
 enum Instruction<> {
@@ -62,7 +62,7 @@ fn read(input: &mut String) {
     stdin().read_line(input).expect("Read");
 }
 
-fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, program: &mut Vec<Instruction>) -> i32 {
+fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, program: &mut Vec<Instruction>, labels: &HashMap<String, usize>) -> i32 {
     let mut numstack: Vec<i32> = Vec::new();
 
     for token in rpnstack {
@@ -80,6 +80,10 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
                                     "GOTO" => program.push(GOTO((&rpnstack[1]).clone())),
                                     _ => todo!()
                                 }
+                            }
+                            else if labels.contains_key(w) {
+                                // This should never happen
+                                numstack.push(-1);
                             }
                             else { panic!("Unknown word {w} at line {lc}"); }
                         }
@@ -107,8 +111,28 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
     return *numstack.last().unwrap();
 }
 
-fn evalprogram(program: Vec<Instruction>) {
-    
+fn evalprogram(program: &mut Vec<Instruction>, vars: &HashMap<String, i32>, labels: HashMap<String, usize>) {
+    let mut idx = 0usize;
+
+    while idx < program.len() {
+        match &program[idx].clone() {
+            PRINT(rpnstack) => println!("{}", evalrpn(rpnstack, vars, idx, program, &labels)),
+            GOTO(at) => {
+                match at {
+                    Val(v) => match v {
+                        Word(w) => {
+                            idx = labels[w] - 1;
+                            continue;
+                        }
+                        Int(_) => panic!("Invalid GOTO parameter at line {idx}")
+                    }
+                    Op(_) => panic!("Invalid GOTO parameter at line {idx}")
+                }
+            }
+            _ => todo!()
+        }
+        idx += 1;
+    }
 }
 
 fn main() {
@@ -257,11 +281,14 @@ fn main() {
         }
 
         if !var.is_empty() {
-            vars.insert(var, evalrpn(&rpnstack, &vars, lc, &mut program));
+            vars.insert(var, evalrpn(&rpnstack, &vars, lc, &mut program, &labels));
+        }
+        else {
+            evalrpn(&rpnstack, &vars, lc, &mut program, &labels);
         }
 
         lc += 1;
     }
 
-    evalprogram(program);
+    evalprogram(&mut program, &vars, labels);
 }
