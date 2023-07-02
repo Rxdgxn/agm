@@ -14,7 +14,7 @@ enum Instruction<> {
     GOTO(Token),
     BZ(Vec<Token>, Box<Instruction>),
     BG(Vec<Token>, Box<Instruction>),
-    MUTATE(String, Vec<Token>) // stub
+    MUTATE(String, Vec<Token>)
 }
 
 #[derive(Clone, Debug)]
@@ -62,10 +62,25 @@ fn read(input: &mut String) {
     stdin().read_line(input).expect("Read");
 }
 
+fn token_to_string(tok: &Token) -> Option<&String> {
+    match tok {
+        Val(v) => {
+            match v {
+                Word(w) => Some(w),
+                _ => None
+            }
+        }
+        _ => None
+    }
+}
+
 fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, program: &mut Vec<Instruction>, labels: &HashMap<String, usize>) -> i32 {
     let mut numstack: Vec<i32> = Vec::new();
 
-    for token in rpnstack {
+    let mut it = rpnstack.iter();
+    let mut next = it.next();
+
+    while let Some(token) = next {
         match token {
             Val(val) => {
                 match val {
@@ -78,8 +93,45 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
                                     // The 1 index should be valid when the rpnstack is passed to the instruction
                                     "PRINT" => program.push(PRINT(rpnstack[1..rpnstack.len()].to_vec())),
                                     "GOTO" => program.push(GOTO((&rpnstack[1]).clone())),
-                                    _ => todo!()
+                                    "BG" => {
+                                        let mut tmpit = it.clone();
+                                        let mut tmp = tmpit.next();
+                                        let mut idx = 1usize;
+                                        while let Some(t) = tmp {
+                                            if token_to_string(t) != None {
+                                                if KEYWORDS.contains(&(&token_to_string(t).unwrap() as &str)) {
+                                                    program.push(BG(rpnstack[1..idx].to_vec(), Box::new(match &token_to_string(t).unwrap() as &str {
+                                                        "PRINT" => PRINT(rpnstack[idx+1..rpnstack.len()].to_vec()),
+                                                        "GOTO" => GOTO((&rpnstack[idx+1]).clone()),
+                                                        _ => panic!("Not implemented yet (recursion for nested instructions)")
+                                                    })));
+                                                }
+                                            }
+                                            tmp = tmpit.next();
+                                            idx += 1;
+                                        }
+                                    }
+                                    "BZ" => {
+                                        let mut tmpit = it.clone();
+                                        let mut tmp = tmpit.next();
+                                        let mut idx = 1usize;
+                                        while let Some(t) = tmp {
+                                            if token_to_string(t) != None {
+                                                if KEYWORDS.contains(&(&token_to_string(t).unwrap() as &str)) {
+                                                    program.push(BZ(rpnstack[1..idx].to_vec(), Box::new(match &token_to_string(t).unwrap() as &str {
+                                                        "PRINT" => PRINT(rpnstack[idx+1..rpnstack.len()].to_vec()),
+                                                        "GOTO" => GOTO((&rpnstack[idx+1]).clone()),
+                                                        _ => panic!("Not implemented yet (recursion for nested instructions)")
+                                                    })));
+                                                }
+                                            }
+                                            tmp = tmpit.next();
+                                            idx += 1;
+                                        }
+                                    }
+                                    _ => panic!("Something went wrong")
                                 }
+                                break; // ?
                             }
                             else if labels.contains_key(w) {
                                 // This should never happen
@@ -104,11 +156,15 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
                 });
             }
         }
+        next = it.next();
     }
 
     if numstack.len() > 1 { panic!("Too many numbers for the given operators"); }
     
-    return *numstack.last().unwrap();
+    if let Some(n) = numstack.last() {
+        return *n;
+    }
+    return -1; // Still not the optimal solution
 }
 
 fn evalprogram(program: &mut Vec<Instruction>, vars: &HashMap<String, i32>, labels: HashMap<String, usize>) {
@@ -118,15 +174,24 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &HashMap<String, i32>, labe
         match &program[idx].clone() {
             PRINT(rpnstack) => println!("{}", evalrpn(rpnstack, vars, idx, program, &labels)),
             GOTO(at) => {
-                match at {
-                    Val(v) => match v {
-                        Word(w) => {
-                            idx = labels[w] - 1;
-                            continue;
-                        }
-                        Int(_) => panic!("Invalid GOTO parameter at line {idx}")
-                    }
-                    Op(_) => panic!("Invalid GOTO parameter at line {idx}")
+                if let Some(w) = token_to_string(at) {
+                    idx = labels[w];
+                    continue;
+                }
+                panic!("Invalid GOTO parameter at line {idx}: {:?}", at);
+            }
+            BG(rpnstack, instr) => {
+                if evalrpn(rpnstack, vars, idx, program, &labels) > 0 {
+                    let mut p = Vec::new();
+                    p.push(*instr.clone());
+                    evalprogram(&mut p, vars, labels.clone());
+                }
+            }
+            BZ(rpnstack, instr) => {
+                if evalrpn(rpnstack, vars, idx, program, &labels) == 0 {
+                    let mut p = Vec::new();
+                    p.push(*instr.clone());
+                    evalprogram(&mut p, vars, labels.clone());
                 }
             }
             _ => todo!()
@@ -134,6 +199,9 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &HashMap<String, i32>, labe
         idx += 1;
     }
 }
+
+// TODO: var and label assignment is not counted, thus GOTO won't work with lc
+// TODO: BG $x $x := 0
 
 fn main() {
     let mut lc = 1usize; // line counter
@@ -206,21 +274,15 @@ fn main() {
                     num = 0;
                     word.clear();
 
-                    if ch == '(' {
-                        tokstack.push(Op(Open));
-                    }
-                    else if ch == ')' {
-                        tokstack.push(Op(Closed));
-                    }
-                    else {
-                        tokstack.push(match ch {
-                            '+' => Op(Plus),
-                            '-' => Op(Minus),
-                            '*' => Op(Mul),
-                            '/' => Op(Div),
-                            _ => panic!("Something went wrong")
-                        });
-                    }
+                    tokstack.push(match ch {
+                        '+' => Op(Plus),
+                        '-' => Op(Minus),
+                        '*' => Op(Mul),
+                        '/' => Op(Div),
+                        '(' => Op(Open),
+                        ')' => Op(Closed),
+                        _ => panic!("Something went wrong")
+                    });
                 }
 
                 if i == partition.len() - 1 {
@@ -235,6 +297,16 @@ fn main() {
         }
 
         for token in &tokstack {
+
+            if let Some(t) = token_to_string(token) {
+                if KEYWORDS.contains(&(t as &str)) {
+                    for op in opstack.iter().rev() {
+                        rpnstack.push(Op(*op));
+                    }
+                    opstack.clear();
+                }
+            }
+
             match token {
                 Val(v) => rpnstack.push(Val(v.clone())),
                 Op(op) => {
@@ -257,6 +329,10 @@ fn main() {
             }
         }
 
+        for op in opstack.iter().rev() {
+            rpnstack.push(Op(*op));
+        }
+
         if rpnstack.len() == 1 && var.is_empty() {
             match rpnstack.clone().last().unwrap() {
                 Op(o) => panic!("Expected 2 operands for operator {:?} at line {lc}", o),
@@ -274,10 +350,6 @@ fn main() {
                     }
                 }
             }
-        }
-        
-        for op in opstack.iter().rev() {
-            rpnstack.push(Op(*op));
         }
 
         if !var.is_empty() {
