@@ -14,6 +14,7 @@ enum Instruction<> {
     GOTO(Token),
     BZ(Vec<Token>, Box<Instruction>),
     BG(Vec<Token>, Box<Instruction>),
+    LABEL(String, usize),
     MUTATE(String, Vec<Token>)
 }
 
@@ -167,7 +168,7 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
     return -1; // Still not the optimal solution
 }
 
-fn evalprogram(program: &mut Vec<Instruction>, vars: &HashMap<String, i32>, labels: HashMap<String, usize>) {
+fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, labels: &mut HashMap<String, usize>) {
     let mut idx = 0usize;
 
     while idx < program.len() {
@@ -184,23 +185,24 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &HashMap<String, i32>, labe
                 if evalrpn(rpnstack, vars, idx, program, &labels) > 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    evalprogram(&mut p, vars, labels.clone());
+                    evalprogram(&mut p, vars, labels); // NOTE: GOTO doesn't go anywhere
                 }
             }
             BZ(rpnstack, instr) => {
                 if evalrpn(rpnstack, vars, idx, program, &labels) == 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    evalprogram(&mut p, vars, labels.clone());
+                    evalprogram(&mut p, vars, labels);
                 }
             }
-            _ => todo!()
+            LABEL(l, i) => _ = labels.insert(l.clone(), *i),
+            MUTATE(var, rpnstack) => _ = vars.insert(var.clone(), evalrpn(rpnstack, vars, idx, program, labels))
         }
         idx += 1;
     }
 }
 
-// TODO: var and label assignment is not counted, thus GOTO won't work with lc
+// TODO: BG & BZ
 // TODO: BG $x $x := 0
 
 fn main() {
@@ -340,10 +342,10 @@ fn main() {
                     Int(_) => {},
                     Word(w) => {
                         if &w[0..=0] == "$" {
-                            vars.insert(w.clone(), 0);
+                            program.push(MUTATE(w.clone(), Vec::from([Val(Int(0))])));
                         }
                         else {
-                            labels.insert(w.clone(), lc);
+                            program.push(LABEL(w.clone(), lc));
                         }
                         lc += 1;
                         continue;
@@ -353,7 +355,7 @@ fn main() {
         }
 
         if !var.is_empty() {
-            vars.insert(var, evalrpn(&rpnstack, &vars, lc, &mut program, &labels));
+            program.push(MUTATE(var, rpnstack));
         }
         else {
             evalrpn(&rpnstack, &vars, lc, &mut program, &labels);
@@ -362,5 +364,5 @@ fn main() {
         lc += 1;
     }
 
-    evalprogram(&mut program, &vars, labels);
+    evalprogram(&mut program, &mut vars, &mut labels);
 }
