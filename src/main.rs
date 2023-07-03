@@ -9,7 +9,7 @@ use Instruction::*;
 const KEYWORDS: [&str; 4] = ["BG", "BZ", "GOTO", "PRINT"];
 
 #[derive(Clone, Debug)]
-enum Instruction<> {
+enum Instruction {
     PRINT(Vec<Token>),
     GOTO(Token),
     BZ(Vec<Token>, Box<Instruction>),
@@ -168,7 +168,7 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
     return -1; // Still not the optimal solution
 }
 
-fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, labels: &mut HashMap<String, usize>) {
+fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, labels: &mut HashMap<String, usize>) -> usize {
     let mut idx = 0usize;
 
     while idx < program.len() {
@@ -185,14 +185,16 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
                 if evalrpn(rpnstack, vars, idx, program, &labels) > 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    evalprogram(&mut p, vars, labels); // NOTE: GOTO doesn't go anywhere
+                    idx = evalprogram(&mut p, vars, labels);
+                    continue;
                 }
             }
             BZ(rpnstack, instr) => {
                 if evalrpn(rpnstack, vars, idx, program, &labels) == 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    evalprogram(&mut p, vars, labels);
+                    idx = evalprogram(&mut p, vars, labels);
+                    continue;
                 }
             }
             LABEL(l, i) => _ = labels.insert(l.clone(), *i),
@@ -200,10 +202,11 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
         }
         idx += 1;
     }
+
+    idx
 }
 
-// TODO: BG & BZ
-// TODO: BG $x $x := 0
+// TODO: BG $x $x :=...
 
 fn main() {
     let mut lc = 1usize; // line counter
