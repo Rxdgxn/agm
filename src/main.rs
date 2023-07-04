@@ -1,5 +1,4 @@
 // #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut, unused_variables)]
-use std::io::{stdin, stdout, Write};
 use std::collections::HashMap;
 use Token::*;
 use Operator::*;
@@ -56,11 +55,6 @@ fn unwindopstack(opstack: Vec<Operator>, op: Operator) -> bool {
         return false;
     }
     return precedence(*opstack.last().unwrap()) >= precedence(op);
-}
-
-fn read(input: &mut String) {
-    stdout().flush().expect("Flush");
-    stdin().read_line(input).expect("Read");
 }
 
 fn token_to_string(tok: &Token) -> Option<&String> {
@@ -210,25 +204,21 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
 
 fn main() {
     let mut lc = 1usize; // line counter
-    let mut line: String;
     let mut vars: HashMap<String, i32> = HashMap::new();
     let mut labels: HashMap<String, usize> = HashMap::new();
     let mut program: Vec<Instruction> = Vec::new();
 
-    loop {
-        line = String::from("");
-        read(&mut line);
-        line = line.trim().to_string();
+    let fc = include_str!("../fib.agm");
+    let split = fc.split(';');
+
+    for line in split {
+        let mut line = line.trim().to_string();
 
         let mut opstack: Vec<Operator> = Vec::new();
         let mut tokstack: Vec<Token> = Vec::new();
         let mut rpnstack: Vec<Token> = Vec::new();
         let mut var = String::new();
 
-        if line.chars().last().unwrap() != ';' {
-            panic!("Error at line {lc}. Line must end with ';'");
-        }
-        line.remove(line.len() - 1); // Drop the ';'
         if line == "END" {
             break;
         }
@@ -348,6 +338,7 @@ fn main() {
                             program.push(MUTATE(w.clone(), Vec::from([Val(Int(0))])));
                         }
                         else {
+                            labels.insert(w.clone(), lc);
                             program.push(LABEL(w.clone(), lc));
                         }
                         lc += 1;
