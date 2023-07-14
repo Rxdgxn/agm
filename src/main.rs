@@ -30,6 +30,10 @@ enum Operator {
     Minus,
     Mul,
     Div,
+    Mod,
+    And,
+    Or,
+    Xor,
     Open,
     Closed
 }
@@ -47,7 +51,11 @@ fn precedence(op: Operator) -> i32 {
         Plus => 1,
         Minus => 1,
         Mul => 2,
-        Div => 2
+        Div => 2,
+        Mod => 2,
+        And => 2,
+        Or => 2,
+        Xor => 2
     }    
 }
 
@@ -145,6 +153,10 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
                     Minus => a - b,
                     Mul => a * b,
                     Div => a / b,
+                    Mod => a % b,
+                    And => a & b,
+                    Or => a | b,
+                    Xor => a ^ b,
                     _ => panic!("Something went wrong at parsing to RPN")
                 });
             }
@@ -272,6 +284,10 @@ fn main() {
                         '/' => Op(Div),
                         '(' => Op(Open),
                         ')' => Op(Closed),
+                        '%' => Op(Mod),
+                        '&' => Op(And),
+                        '|' => Op(Or),
+                        '^' => Op(Xor),
                         _ => panic!("Something went wrong")
                     });
                 }
