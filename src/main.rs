@@ -14,7 +14,7 @@ enum Instruction {
     GOTO(Token),
     BZ(Vec<Token>, Box<Instruction>),
     BG(Vec<Token>, Box<Instruction>),
-    LABEL(String, usize),
+    LABEL,
     MUTATE(String, Vec<Token>)
 }
 
@@ -199,7 +199,7 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
                     idx = evalprogram(&mut p, vars, labels);
                 }
             }
-            LABEL(l, i) => _ = labels.insert(l.clone(), *i),
+            LABEL => {}
             MUTATE(var, rpnstack) => _ = vars.insert(var.clone(), evalrpn(rpnstack, vars, idx, program, labels))
         }
         idx += 1;
@@ -351,7 +351,7 @@ fn main() {
                         }
                         else {
                             labels.insert(w.clone(), lc);
-                            program.push(LABEL(w.clone(), lc));
+                            program.push(LABEL); // LABEL is just a marker
                         }
                         lc += 1;
                         continue;
