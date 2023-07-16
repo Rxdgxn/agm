@@ -200,18 +200,19 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
                 }
                 panic!("Invalid GOTO parameter at line {idx}: {:?}", at);
             }
+            // idx = ... only worked for GOTO, for anything else it's just 0
             BG(rpnstack, instr) => {
                 if evalrpn(rpnstack, vars, idx, program, &labels).0 > 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    idx = evalprogram(&mut p, vars, labels);
+                    evalprogram(&mut p, vars, labels);
                 }
             }
             BZ(rpnstack, instr) => {
                 if evalrpn(rpnstack, vars, idx, program, &labels).0 == 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    idx = evalprogram(&mut p, vars, labels);
+                    evalprogram(&mut p, vars, labels);
                 }
             }
             LABEL => {}
@@ -229,7 +230,8 @@ fn main() {
     let mut labels: HashMap<String, usize> = HashMap::new();
     let mut program: Vec<Instruction> = Vec::new();
 
-    let fc = include_str!("../fib.agm");
+    let args: Vec<String> = std::env::args().collect();
+    let fc = std::fs::read_to_string(&args[1]).unwrap();
     let split = fc.split(';');
 
     for line in split {

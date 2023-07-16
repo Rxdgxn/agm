@@ -1,0 +1,16 @@
+$x := 1;
+$LIMIT := 100;
+
+startloop;
+BG $x - $LIMIT GOTO endloop;
+
+BG $x % 3 BG $x % 5 PRINT $x;
+BZ $x % 3 PRINT "FIZZ";
+BZ $x % 5 PRINT "BUZZ";
+NEWL;
+
+$x := $x + 1;
+GOTO startloop;
+
+endloop;
+END;
