@@ -6,11 +6,12 @@ use Operator::*;
 use Value::*;
 use Instruction::*;
 
-const KEYWORDS: [&str; 4] = ["BG", "BZ", "GOTO", "PRINT"];
+const KEYWORDS: [&str; 5] = ["BG", "BZ", "GOTO", "PRINT", "NEWL"];
 
 #[derive(Clone, Debug)]
 enum Instruction {
     PRINT(Vec<Token>),
+    NEWL,
     GOTO(Token),
     BZ(Vec<Token>, Box<Instruction>),
     BG(Vec<Token>, Box<Instruction>),
@@ -21,7 +22,8 @@ enum Instruction {
 #[derive(Clone, Debug)]
 enum Value {
     Int(i32),
-    Word(String)
+    Word(String),
+    Str(String)
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -81,6 +83,7 @@ fn token_to_string(tok: &Token) -> Option<&String> {
 fn return_instr(w: &str, rpnstack: &Vec<Token>, it: &mut Iter<'_, Token>) -> Option<Instruction> {
     match w {
         "PRINT" => Some(PRINT(rpnstack[1..rpnstack.len()].to_vec())),
+        "NEWL" => Some(NEWL),
         "GOTO" => Some(GOTO((&rpnstack[1]).clone())),
         "BG" => {
             let mut tmpit = it.clone();
@@ -116,8 +119,9 @@ fn return_instr(w: &str, rpnstack: &Vec<Token>, it: &mut Iter<'_, Token>) -> Opt
     }
 }
 
-fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, program: &mut Vec<Instruction>, labels: &HashMap<String, usize>) -> i32 {
+fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, program: &mut Vec<Instruction>, labels: &HashMap<String, usize>) -> (i32, String) {
     let mut numstack: Vec<i32> = Vec::new();
+    let mut string = String::new();
 
     let mut it = rpnstack.iter();
     let mut next = it.next();
@@ -141,6 +145,7 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
                             else { panic!("Unknown word {w} at line {lc}"); }
                         }
                     }
+                    Str(s) => string = s.clone()
                 }
             }
             Op(op) => {
@@ -164,12 +169,13 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
         next = it.next();
     }
 
-    if numstack.len() > 1 { panic!("Too many numbers for the given operators"); }
+    if numstack.len() > 1 { panic!("Unappropriate numstack len: {}", numstack.len()); }
+    if numstack.len() > 0 && !string.is_empty() { panic!("Cannot return an integer and a string at the same time"); }
     
     if let Some(n) = numstack.last() {
-        return *n;
+        return (*n, string);
     }
-    return -1; // Still not the optimal solution
+    return (-1, string); // Still not the optimal solution
 }
 
 fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, labels: &mut HashMap<String, usize>) -> usize {
@@ -177,7 +183,16 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
 
     while idx < program.len() {
         match &program[idx].clone() {
-            PRINT(rpnstack) => println!("{}", evalrpn(rpnstack, vars, idx, program, &labels)),
+            PRINT(rpnstack) => {
+                let res = evalrpn(rpnstack, vars, idx, program, &labels);
+                if res.1.is_empty() {
+                    print!("{}", res.0);
+                }
+                else {
+                    print!("{}", res.1);
+                }
+            }
+            NEWL => println!(),
             GOTO(at) => {
                 if let Some(w) = token_to_string(at) {
                     idx = labels[w];
@@ -186,29 +201,27 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
                 panic!("Invalid GOTO parameter at line {idx}: {:?}", at);
             }
             BG(rpnstack, instr) => {
-                if evalrpn(rpnstack, vars, idx, program, &labels) > 0 {
+                if evalrpn(rpnstack, vars, idx, program, &labels).0 > 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
                     idx = evalprogram(&mut p, vars, labels);
                 }
             }
             BZ(rpnstack, instr) => {
-                if evalrpn(rpnstack, vars, idx, program, &labels) == 0 {
+                if evalrpn(rpnstack, vars, idx, program, &labels).0 == 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
                     idx = evalprogram(&mut p, vars, labels);
                 }
             }
             LABEL => {}
-            MUTATE(var, rpnstack) => _ = vars.insert(var.clone(), evalrpn(rpnstack, vars, idx, program, labels))
+            MUTATE(var, rpnstack) => _ = vars.insert(var.clone(), evalrpn(rpnstack, vars, idx, program, labels).0)
         }
         idx += 1;
     }
 
     idx
 }
-
-// TODO: BG $x $x :=...
 
 fn main() {
     let mut lc = 1usize; // line counter
@@ -227,6 +240,9 @@ fn main() {
         let mut rpnstack: Vec<Token> = Vec::new();
         let mut var = String::new();
 
+        let mut in_string = false;
+        let mut string = String::new();
+
         if line == "END" {
             break;
         }
@@ -242,23 +258,25 @@ fn main() {
             line = split.next().unwrap().trim().to_string();
         }
 
-        let mut it = line.split_whitespace();
-        let mut next = it.next();
+        let mut num = 0i32;
+        let mut is_num = false;
 
-        while let Some(partition) = next {
-            let mut num = 0i32;
-            let mut is_num = false;
+        let mut word = String::new();
+        let mut is_word = false;
 
-            let mut word = String::new();
-            let mut is_word = false;
-
-            for (i, ch) in partition.chars().enumerate() {
-                if ch.is_alphabetic() || ch == '$' {
+        for (i, ch) in line.chars().enumerate() {
+            if ch.is_alphabetic() || ch == '$' {
+                if !in_string {
                     if is_num { panic!("Syntax error"); }
                     is_word = true;
                     word.push(ch);
                 }
-                else if ch.is_numeric() {
+                else {
+                    string.push(ch);
+                }
+            }
+            else if ch.is_numeric() {
+                if !in_string {
                     if is_word {
                         word.push(ch);
                     }
@@ -268,39 +286,58 @@ fn main() {
                     }
                 }
                 else {
-                    if is_num { tokstack.push(Val(Int(num))); }
-                    if is_word {
-                        tokstack.push(Val(Word(word.clone())));
-                    }
-                    is_num = false;
-                    is_word = false;
-                    num = 0;
-                    word.clear();
-
-                    tokstack.push(match ch {
-                        '+' => Op(Plus),
-                        '-' => Op(Minus),
-                        '*' => Op(Mul),
-                        '/' => Op(Div),
-                        '(' => Op(Open),
-                        ')' => Op(Closed),
-                        '%' => Op(Mod),
-                        '&' => Op(And),
-                        '|' => Op(Or),
-                        '^' => Op(Xor),
-                        _ => panic!("Something went wrong")
-                    });
-                }
-
-                if i == partition.len() - 1 {
-                    if is_word {
-                        tokstack.push(Val(Word(word.clone())));
-                    }
-                    if is_num { tokstack.push(Val(Int(num))); }
+                    string.push(ch);
                 }
             }
+            else {
+                if is_num { tokstack.push(Val(Int(num))); }
+                if is_word {
+                    tokstack.push(Val(Word(word.clone())));
+                }
+                is_num = false;
+                is_word = false;
+                num = 0;
+                word.clear();
 
-            next = it.next();
+                if ch == '\"' {
+                    in_string = !in_string;
+                    if !in_string {
+                        tokstack.push(Val(Str(string.clone())));
+                        string.clear();
+                    }
+                    continue;
+                }
+                
+                if in_string {
+                    string.push(ch);
+                    continue;
+                }
+
+                if ch == ' ' {
+                    continue;
+                }
+
+                tokstack.push(match ch {
+                    '+' => Op(Plus),
+                    '-' => Op(Minus),
+                    '*' => Op(Mul),
+                    '/' => Op(Div),
+                    '(' => Op(Open),
+                    ')' => Op(Closed),
+                    '%' => Op(Mod),
+                    '&' => Op(And),
+                    '|' => Op(Or),
+                    '^' => Op(Xor),
+                    _ => panic!("Something went wrong")
+                });
+            }
+
+            if i == line.len() - 1 {
+                if is_word {
+                    tokstack.push(Val(Word(word.clone())));
+                }
+                if is_num { tokstack.push(Val(Int(num))); }
+            }
         }
 
         for token in &tokstack {
@@ -340,7 +377,7 @@ fn main() {
             rpnstack.push(Op(*op));
         }
 
-        if rpnstack.len() == 1 && var.is_empty() {
+        if rpnstack.len() == 1 && var.is_empty() && !KEYWORDS.contains(&(token_to_string(rpnstack.clone().last().unwrap()).unwrap() as &str)) {
             match rpnstack.clone().last().unwrap() {
                 Op(o) => panic!("Expected 2 operands for operator {:?} at line {lc}", o),
                 Val(v) => match v {
@@ -356,6 +393,7 @@ fn main() {
                         lc += 1;
                         continue;
                     }
+                    Str(_) => {}
                 }
             }
         }

@@ -6,7 +6,9 @@ $LIMIT := 1000;
 startloop;
 
 BG $f - $LIMIT GOTO endloop;
+PRINT "> ";
 PRINT $f;
+NEWL;
 $f1 := $f2;
 $f2 := $f;
 $f := $f1 + $f2;
