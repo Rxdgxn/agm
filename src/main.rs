@@ -178,8 +178,9 @@ fn evalrpn(rpnstack: &Vec<Token>, vars: &HashMap<String, i32>, lc: usize, progra
     return (-1, string); // Still not the optimal solution
 }
 
-fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, labels: &mut HashMap<String, usize>) -> usize {
+fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, labels: &mut HashMap<String, usize>) -> (usize, bool) {
     let mut idx = 0usize;
+    let mut gotoed = false;
 
     while idx < program.len() {
         match &program[idx].clone() {
@@ -196,23 +197,31 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
             GOTO(at) => {
                 if let Some(w) = token_to_string(at) {
                     idx = labels[w];
+                    gotoed = true;
                     continue;
                 }
                 panic!("Invalid GOTO parameter at line {idx}: {:?}", at);
             }
-            // idx = ... only worked for GOTO, for anything else it's just 0
             BG(rpnstack, instr) => {
                 if evalrpn(rpnstack, vars, idx, program, &labels).0 > 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    evalprogram(&mut p, vars, labels);
+                    let res = evalprogram(&mut p, vars, labels);
+                    if res.1 {
+                        idx = res.0;
+                        gotoed = true;
+                    }
                 }
             }
             BZ(rpnstack, instr) => {
                 if evalrpn(rpnstack, vars, idx, program, &labels).0 == 0 {
                     let mut p = Vec::new();
                     p.push(*instr.clone());
-                    evalprogram(&mut p, vars, labels);
+                    let res = evalprogram(&mut p, vars, labels);
+                    if res.1 {
+                        idx = res.0;
+                        gotoed = true;
+                    }
                 }
             }
             LABEL => {}
@@ -221,7 +230,7 @@ fn evalprogram(program: &mut Vec<Instruction>, vars: &mut HashMap<String, i32>, 
         idx += 1;
     }
 
-    idx
+    (idx, gotoed)
 }
 
 fn main() {
